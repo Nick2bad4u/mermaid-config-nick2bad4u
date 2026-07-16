@@ -1,4 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
     createMermaidConfig,
@@ -7,6 +9,27 @@ import {
 } from "../dist/mermaid-config.js";
 
 const checkOnly = process.argv.includes("--check");
+const presetDirectory = fileURLToPath(new URL("../presets", import.meta.url));
+const expectedPresetFiles = new Set(
+    mermaidThemeNames.map((themeName) => `${themeName}.json`)
+);
+
+for (const entry of await readdir(presetDirectory, { withFileTypes: true })) {
+    if (
+        !entry.isFile() ||
+        !entry.name.endsWith(".json") ||
+        expectedPresetFiles.has(entry.name)
+    ) {
+        continue;
+    }
+
+    if (checkOnly) {
+        throw new Error(`Unexpected generated preset: ${entry.name}.`);
+    }
+
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- entry comes from the package-owned preset directory
+    await unlink(path.join(presetDirectory, entry.name));
+}
 
 for (const themeName of mermaidThemeNames) {
     const presetPath = getMermaidPresetPath(themeName);
